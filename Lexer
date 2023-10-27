@@ -1,0 +1,313 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Kozlov_broadcast_methods__2
+{
+    public class Lexer
+    {
+        private string input;
+        private int position;
+
+        public Dictionary<string, TokenType> Keywords;
+        public Dictionary<string, TokenType> Identifiers;
+        public Dictionary<string, TokenType> Constants;
+        public Dictionary<string, TokenType> Symbols;
+        public Dictionary<string, TokenType> StandardFunctions;
+        private List<Token> tokens;
+        private List<string> errors;
+
+        public Lexer(string input)
+        {
+            this.input = input;
+            position = 0;
+            StandardFunctions = new Dictionary<string, TokenType>
+            {
+                { "sqrt", TokenType.StandardFunction },
+                { "log", TokenType.StandardFunction },
+                { "ln", TokenType.StandardFunction },
+                { "nearby", TokenType.StandardFunction },
+            };
+            Keywords = new Dictionary<string, TokenType>
+            {
+                { ":=", TokenType.Keyword },
+                { "write", TokenType.Keyword },
+                { "whileln", TokenType.Keyword },
+                { "read", TokenType.Keyword },
+                { "readln", TokenType.Keyword },
+                { "if", TokenType.Keyword },
+                { "else", TokenType.Keyword },
+                { "while", TokenType.Keyword },
+                { "break", TokenType.Keyword },
+                { "goto", TokenType.Keyword },
+                { "real", TokenType.Keyword },
+                { "integer", TokenType.Keyword },
+                { "double", TokenType.Keyword },
+                { "string", TokenType.Keyword },
+                { "char", TokenType.Keyword },
+                { "boolean", TokenType.Keyword },
+                { "program", TokenType.Keyword },
+                { "var", TokenType.Keyword },
+                { "begin", TokenType.Keyword },
+                { "switch", TokenType.Keyword },
+                { "case", TokenType.Keyword },
+                { "default", TokenType.Keyword },
+                { "end", TokenType.Keyword },
+            };
+
+            Identifiers = new Dictionary<string, TokenType>();
+            Constants = new Dictionary<string, TokenType>();
+            Symbols = new Dictionary<string, TokenType>
+            {
+                { ";", TokenType.Symbol },
+                { ",", TokenType.Symbol },
+                { ":", TokenType.Symbol },
+                { "_", TokenType.Symbol },
+                { "\"", TokenType.Symbol },
+                { "\'", TokenType.Symbol },
+                { "[", TokenType.Symbol },
+                { "]", TokenType.Symbol },
+                { ">", TokenType.Symbol },
+                { "<", TokenType.Symbol },
+                { "+", TokenType.Symbol },
+                { "-", TokenType.Symbol },
+                { "*", TokenType.Symbol },
+                { "/", TokenType.Symbol },
+                { "=", TokenType.Symbol },
+                { "(", TokenType.Symbol },
+                { ")", TokenType.Symbol },
+                { "{", TokenType.Symbol },
+                { "}", TokenType.Symbol },
+                { "#", TokenType.Symbol }, // Добавлен символ для комментариев
+            };
+
+            tokens = new List<Token>();
+            errors = new List<string>();
+        }
+
+        public List<Token> Tokenize()
+        {
+            while (position < input.Length)
+            {
+                char currentChar = input[position];
+
+                if (char.IsWhiteSpace(currentChar))
+                {
+                    position++;
+                    continue;
+                }
+                if (char.IsDigit(currentChar))
+                {
+                    Token numberToken = ReadNumber();
+                    tokens.Add(numberToken);
+                    continue;
+                }
+
+                if (char.IsLetter(currentChar) && ((currentChar >= 'A' && currentChar <= 'Z') || (currentChar >= 'a' && currentChar <= 'z')) || currentChar == '_' || (currentChar == ':' && position + 1 < input.Length && input[position + 1] == '='))
+                {
+                    Token identifierToken = ReadIdentifier();
+                    tokens.Add(identifierToken);
+                    continue;
+                }
+
+                if (IsSymbol(currentChar))
+                {
+                    if (currentChar.Equals('#'))
+                    {
+                        position++;
+                        SkipComment(); // Пропустить комментарий
+                        continue;
+                    }
+
+                    else
+                    {
+                        Token symbolToken = ReadSymbol();
+                        tokens.Add(symbolToken);
+                        continue;
+                    }
+                }
+
+                errors.Add($"Unknown character: {currentChar}");
+                position++;
+            }
+
+            return tokens;
+        }
+
+        private Token ReadNumber()
+        {
+            int start = position;
+
+            while (position < input.Length && char.IsDigit(input[position]))
+            {
+                position++;
+            }
+
+            string number = input.Substring(start, position - start);
+
+            if (!Constants.ContainsKey(number))
+            {
+                Constants.Add(number, TokenType.Constant);
+            }
+
+            return new Token(number, TokenType.Constant);
+        }
+
+        private Token ReadIdentifier()
+        {
+            int start = position;
+            bool flag = true;
+
+            while (position < input.Length && (char.IsLetterOrDigit(input[position]) || input[position] == '_' || input[position] == ':' || input[position] == '='))
+            {
+                position++;
+            }
+
+            string identifier = input.Substring(start, position - start);
+            if (identifier == ":=") { }
+            else if (identifier.Length <= 14)
+            {
+                for (int i = 0; i < identifier.Length; i++)
+                {
+                    if (!Symbols.ContainsKey(identifier[i].ToString())) { }
+                    else { flag = false; break; }
+
+                }
+            }
+            else { errors.Add($"Invalid identifier: {identifier}"); flag = false; }
+            // Проверка условий для идентификатора
+            if (flag)
+            {
+                TokenType identifierType = TokenType.Identifier;
+                if (Keywords.ContainsKey(identifier))
+                {
+                    identifierType = Keywords[identifier];
+                }
+                else if (StandardFunctions.ContainsKey(identifier))
+                {
+                    identifierType = StandardFunctions[identifier];
+                }
+                else if (!Identifiers.ContainsKey(identifier))
+                {
+                    Identifiers.Add(identifier, TokenType.Identifier);
+                }
+
+                return new Token(identifier, identifierType);
+            }
+
+            errors.Add($"Invalid identifier: {identifier}");
+            return new Token(identifier, TokenType.Unknown);
+        }
+
+        private Token ReadSymbol()
+        {
+            int start = position;
+
+            while (position < input.Length && IsSymbol(input[position]))
+            {
+                position++;
+            }
+
+            string symbol = input.Substring(start, position - start);
+
+            if (!Symbols.ContainsKey(symbol))
+            {
+                Symbols.Add(symbol, TokenType.Symbol);
+            }
+
+            return new Token(symbol, TokenType.Symbol);
+        }
+
+        private bool IsSymbol(char c)
+        {
+            string symbol = c.ToString();
+            return Symbols.ContainsKey(symbol);
+        }
+
+        private void SkipComment()
+        {
+            while (position < input.Length && input[position] != '#')
+            {
+                position++;
+            }
+            position++;
+        }
+
+        public List<string> GetErrors()
+        {
+            return errors;
+        }
+    }
+
+    public enum TokenType
+    {
+        Identifier,
+        Keyword,
+        StandardFunction,
+        Constant,
+        Symbol,
+        Unknown
+    }
+
+    public class Token
+    {
+        public string Lexeme { get; }
+        public TokenType Type { get; }
+
+        public Token(string lexeme, TokenType type)
+        {
+            Lexeme = lexeme;
+            Type = type;
+        }
+    }
+
+    public class Program
+    {
+
+        public static void Main(string[] args)
+        {
+            string input = "program xe; var l, a, yay2 : integer; begin #Try dasdsa sad sada dsa dsa# sqrt(l) := 26; log(a) := 10; yay2 := l+a; end;";
+
+            Lexer lexer = new Lexer(input);
+            List<Token> tokens = lexer.Tokenize();
+            List<string> errors = lexer.GetErrors();
+
+            if (errors.Count > 0)
+            {
+                Console.WriteLine("Lexical errors detected:");
+                foreach (string error in errors)
+                {
+                    Console.WriteLine(error);
+                }
+            }
+            else
+            {
+                foreach (Token token in tokens)
+                {
+                    if (token.Type == TokenType.Keyword)
+                    {
+                        Console.Write($"({token.Type}, {lexer.Keywords.Keys.ToList().IndexOf(token.Lexeme)}) ");
+                    }
+                    else if (token.Type == TokenType.Identifier)
+                    {
+                        Console.Write($"({token.Type}, {lexer.Identifiers.Keys.ToList().IndexOf(token.Lexeme)}) ");
+                    }
+                    else if (token.Type == TokenType.Constant)
+                    {
+                        Console.Write($"({token.Type}, {lexer.Constants.Keys.ToList().IndexOf(token.Lexeme)}) ");
+                    }
+                    else if (token.Type == TokenType.Symbol)
+                    {
+                        Console.Write($"({token.Type}, {lexer.Symbols.Keys.ToList().IndexOf(token.Lexeme)}) ");
+                    }
+                    else if (token.Type == TokenType.StandardFunction)
+                    {
+                        Console.Write($"({token.Type}, {lexer.StandardFunctions.Keys.ToList().IndexOf(token.Lexeme)}) ");
+                    }
+                }
+            }
+
+            Console.ReadKey();
+        }
+    }
+}
